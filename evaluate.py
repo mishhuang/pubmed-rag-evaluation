@@ -1,11 +1,13 @@
 """Evaluation script for the RAG pipeline"""
 
 import random
+import pandas as pd
 from main import rag_pipeline, all_questions, all_ground_truth_answers, all_documents
 from haystack import Pipeline
 from haystack.components.evaluators.document_mrr import DocumentMRREvaluator
 from haystack.components.evaluators.faithfulness import FaithfulnessEvaluator
 from haystack.components.evaluators.sas_evaluator import SASEvaluator
+from haystack.evaluation.eval_run_result import EvaluationRunResult
 from anthropic_chat_generator import AnthropicChatGenerator
 
 # Select 25 random questions and their corresponding ground truth answers and documents
@@ -70,5 +72,41 @@ print("=" * 80)
 print(f"\nDocument Mean Reciprocal Rank (MRR): {results['doc_mrr_evaluator']['score']}")
 print(f"Faithfulness Score: {results['faithfulness']['score']}")
 print(f"Semantic Answer Similarity (SAS): {results['sas_evaluator']['score']}")
+print("\n" + "=" * 80)
+
+# Create evaluation report
+print("\nGenerating evaluation report...\n")
+inputs = {
+    "question": list(questions),
+    "contexts": list([d.content] for d in ground_truth_docs),
+    "answer": list(ground_truth_answers),
+    "predicted_answer": rag_answers,
+}
+
+evaluation_result = EvaluationRunResult(run_name="pubmed_rag_pipeline", inputs=inputs, results=results)
+
+# Display aggregated report
+print("=" * 80)
+print("AGGREGATED REPORT")
+print("=" * 80)
+aggregated = evaluation_result.aggregated_report()
+print(f"Metrics: {aggregated['metrics']}")
+print(f"Scores: {aggregated['score']}")
+print("\n" + "=" * 80)
+
+# Display detailed report as DataFrame
+print("\nDETAILED REPORT (DataFrame)")
+print("=" * 80)
+results_df = evaluation_result.detailed_report(output_format="df")
+print(results_df)
+print("\n" + "=" * 80)
+
+# Show top 3 and bottom 3 for SAS scores
+print("\nTOP 3 AND BOTTOM 3 SAS SCORES")
+print("=" * 80)
+top_3 = results_df.nlargest(3, "sas_evaluator")
+bottom_3 = results_df.nsmallest(3, "sas_evaluator")
+comparison = pd.concat([top_3, bottom_3])
+print(comparison)
 print("\n" + "=" * 80)
 
